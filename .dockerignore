@@ -28,9 +28,8 @@ __pycache__/
 Dockerfile
 docker-compose.yml
 
-# Docs and license (not required at runtime)
+# Development documentation; retain all licenses and attribution at runtime.
 README.md
-LICENSE
 CODE_OF_CONDUCT.md
 CONTRIBUTING.md
 docs/assets/*
