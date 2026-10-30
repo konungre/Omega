@@ -54,6 +54,10 @@ User-facing MeTTa skills the agent invokes. Each page follows the template **Sig
 
 ### Configuration & Adapters
 
+- [reference-dashboard.md](./reference-dashboard.md) — Dashboard setup, operator controls, agent bridge, and recovery
+- [reference-omega-api.md](./reference-omega-api.md) — Authenticated v1 command/event contract
+- [omega-api-v1.openapi.json](./omega-api-v1.openapi.json) — Machine-readable OpenAPI contract
+
 - [reference-configuration.md](./reference-configuration.md) — `configure` form and all runtime parameters
 - [reference-channels.md](./reference-channels.md) — IRC, Telegram, Slack, Mattermost, WebSocket, and websearch adapters plus the channel contract
 - [reference-python-bridges.md](./reference-python-bridges.md) — `lib_llm_ext.py`, `src/helper.py`, `src/skills.pl`

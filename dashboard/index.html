@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0e1015" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Omega · Operator dashboard</title>
+    <link rel="stylesheet" href="/vendor/openclaw-tokens.css" />
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="#overview"
+        ><span class="omega-mark">Ω</span
+        ><span>OMEGA<small>OPERATOR DASHBOARD</small></span></a
+      >
+      <div class="workspace">
+        <span class="workspace-dot"></span
+        ><span>Omega workspace<small>Neural-symbolic agent</small></span
+        ><span class="version">v1</span>
+      </div>
+      <p class="nav-label">WORKSPACE</p>
+      <nav aria-label="Main navigation" id="nav"></nav>
+      <div class="sidebar-footer">
+        <span class="mini-mark">Ω</span>
+        <div>
+          Built for autonomous work<small>Interface based on OpenClaw</small>
+        </div>
+        <a href="/vendor/OPENCLAW-LICENSE" aria-label="OpenClaw license">↗</a>
+      </div>
+    </aside>
+    <div class="shell">
+      <header class="topbar">
+        <div class="breadcrumb">
+          Workspace <span>/</span> <strong id="breadcrumb">Overview</strong>
+        </div>
+        <div class="topbar-actions">
+          <span id="connection" class="badge">Disconnected</span
+          ><button id="connect" class="button small">Connect</button>
+        </div>
+      </header>
+      <div id="notice" role="status" aria-live="polite" hidden></div>
+      <div id="pending" hidden></div>
+      <main id="main"></main>
+      <footer class="footer">
+        <span
+          >OMEGA
+          <span class="muted">/ Continuous intelligence, visible.</span></span
+        ><span id="sync-status">Awaiting connection</span>
+      </footer>
+    </div>
+    <dialog id="connection-dialog" aria-labelledby="connect-title">
+      <form id="connection-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">OMEGA API</span
+          ><button
+            type="button"
+            data-action="close-dialog"
+            class="icon-button"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <h2 id="connect-title">Connect to your agent</h2>
+        <p class="muted">
+          Enter the dashboard token configured on this Omega server. Your token
+          stays in memory for this tab.
+        </p>
+        <p id="connection-error" class="error-text" role="alert" hidden></p>
+        <label for="token">Dashboard token</label
+        ><input
+          id="token"
+          name="token"
+          type="password"
+          autocomplete="off"
+          required
+          minlength="32"
+          placeholder="Paste your dashboard token"
+        />
+        <p class="helper">
+          Served by the same Omega instance as this dashboard.
+        </p>
+        <button class="button primary" type="submit">Connect to Omega →</button>
+      </form>
+    </dialog>
+    <dialog id="inspector" aria-labelledby="inspector-title">
+      <div class="dialog-heading">
+        <span class="eyebrow">INSPECT RECORD</span
+        ><button
+          data-action="close-dialog"
+          class="icon-button"
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </div>
+      <h2 id="inspector-title">Evidence</h2>
+      <div id="inspector-body"></div>
+    </dialog>
+  </body>
+</html>

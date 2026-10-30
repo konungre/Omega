@@ -99,4 +99,6 @@ for var in $SAFE_VARS; do
   fi
 done
 
-exec env -i $env_args "${agent_su[@]}" -s /bin/sh -c "sh run.sh run.metta GATEWAY_URL=\"http://localhost:8080\" $*"
+# The dashboard's bearer token is used only by its operator HTTP server.
+# Pass it explicitly, quoted, rather than through the word-split safe-var list.
+exec env -i $env_args OMEGA_DASHBOARD_TOKEN="${OMEGA_DASHBOARD_TOKEN:-}" "${agent_su[@]}" -s /bin/sh -c "sh run.sh run.metta GATEWAY_URL=\"http://localhost:8080\" $*"

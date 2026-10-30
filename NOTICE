@@ -3,3 +3,10 @@ Relicensing Notice
 Effective as of 2026-07-22, SingularityNET Foundation (CHE-358.649.107) has relicensed this project from the MIT License to the Apache License, Version 2.0.
 
 This change applies to all future releases of the project. Versions released prior to this date remain available under the MIT License.
+
+Dashboard UI attribution
+
+The dashboard theme tokens adapt OpenClaw Control UI source at commit
+23376e5f0a2672be4f6df88f4ad31767d306803a.
+Copyright (c) 2026 OpenClaw Foundation. Licensed under the MIT License;
+see dashboard/vendor/OPENCLAW-LICENSE.

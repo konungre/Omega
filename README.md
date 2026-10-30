@@ -190,6 +190,15 @@ prefix) to prevent agent accessing them.
 
 ---
 
+## Omega dashboard
+
+Run with `commchannel=dashboard` to use the dedicated operator dashboard:
+conversation, live autonomous activity, goal controls, evidence, improvement
+reports, and configuration. Its authenticated `/api/v1` API provides durable
+request IDs, lifecycle events, activity subscriptions, and reconnect recovery.
+See [dashboard setup](docs/reference-dashboard.md) and
+[the API contract](docs/reference-omega-api.md).
+
 ## Documentation
 
 Full documentation lives in [`docs/`](./docs/README.md): introduction,

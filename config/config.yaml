@@ -104,6 +104,13 @@ WS_URL: ""
 # Optional bearer token sent as `Authorization: Bearer <token>`.
 WS_TOKEN: ""
 
+# Dashboard
+# Enabled with commchannel: dashboard. Serves the dashboard and /api/v1.
+# OMEGA_DASHBOARD_TOKEN is required in the environment (minimum 32 bytes).
+# Use a TLS reverse proxy when exposing beyond loopback.
+dashboardHost: "127.0.0.1"
+dashboardPort: 8088
+
 # Mock channel
 # Enabled with commchannel: test
 

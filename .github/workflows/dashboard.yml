@@ -1,0 +1,49 @@
+name: Dashboard API and transport
+
+on:
+  pull_request:
+    paths:
+      - 'omega_api/**'
+      - 'dashboard/**'
+      - 'channels/omega_dashboard.py'
+      - 'config/**'
+      - 'entrypoint.sh'
+      - 'src/channels*'
+      - 'src/providers.py'
+      - 'src/loop.metta'
+      - 'tests/test_dashboard_api.py'
+      - 'tests/dashboard_loop*'
+      - 'docs/omega-api-v1.openapi.json'
+      - '.github/workflows/dashboard.yml'
+  push:
+    paths:
+      - 'omega_api/**'
+      - 'dashboard/**'
+      - 'channels/omega_dashboard.py'
+      - 'config/**'
+      - 'entrypoint.sh'
+      - 'src/channels*'
+      - 'src/providers.py'
+      - 'src/loop.metta'
+      - 'tests/test_dashboard_api.py'
+      - 'tests/dashboard_loop*'
+      - 'docs/omega-api-v1.openapi.json'
+      - '.github/workflows/dashboard.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: API integration tests
+        run: python3 -m unittest discover -s tests -p test_dashboard_api.py -v
+      - name: Browser transport recovery tests
+        run: node --test dashboard/tests/*.test.mjs
+      - name: Validate OpenAPI JSON
+        run: python3 -m json.tool docs/omega-api-v1.openapi.json > /dev/null

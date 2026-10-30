@@ -27,3 +27,5 @@ Autotests/logs/
 # logs
 logs/*.log
 logs/*.log.*
+# Operator API state
+memory/dashboard.sqlite3*

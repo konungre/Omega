@@ -25,6 +25,10 @@
   loader: python
   location: "{REPO}/channels"
 
+- name: omega_dashboard
+  loader: python
+  location: "{REPO}/channels"
+
 - name: openaiapi
   loader: python
   location: "{REPO}/providers"

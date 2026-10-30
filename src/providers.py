@@ -245,12 +245,15 @@ def llmProviderStart(provider):
 def llmProviderChat(request):
     """Chat via selected LLM provider"""
     global _llmprovider
+    import channels
+    channels.dashboard_begin_turn()
     try:
-        response = _llmprovider.chat(request)
-        return _validate_response(request, response)
+        response = _validate_response(request, _llmprovider.chat(request))
     except Exception:
         logger.exception("Exception while getting LLM response")
-        return LLMResponse()
+        response = LLMResponse().with_error("Exception while getting LLM response")
+    channels.dashboard_provider_result(response)
+    return response
 
 def _validate_response(request: LLMRequest, response: LLMResponse) -> LLMResponse:
     if not response.calls and not response.is_error():
