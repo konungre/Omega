@@ -162,3 +162,18 @@ def dashboard_end_turn():
 def dashboard_report(kind, report):
     runtime = _dashboard_runtime()
     return runtime.report(kind, report) if runtime else '{"error":"Dashboard channel is not active"}'
+
+
+def dashboard_next_control():
+    runtime = _dashboard_runtime()
+    return runtime.workbench.next() if runtime else []
+
+
+def dashboard_finish_control(identifier, result):
+    runtime = _dashboard_runtime()
+    return runtime.workbench.finish(identifier, result) if runtime else ""
+
+
+def dashboard_sync_views(catalog, goals, relations, report):
+    runtime = _dashboard_runtime()
+    return runtime.workbench.sync(catalog, goals, relations, report) if runtime else ""

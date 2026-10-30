@@ -1,4 +1,4 @@
-"""Opt-in dashboard communication channel and embedded operator API."""
+"""Default dashboard communication channel and embedded operator API."""
 import os
 from pathlib import Path
 import sys

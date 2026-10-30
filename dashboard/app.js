@@ -1,4 +1,5 @@
 import { OmegaClient } from "./api-client.js";
+import * as workbench from "./workbench-ui.js";
 
 const $ = (selector) => document.querySelector(selector);
 const escape = (value) =>
@@ -42,6 +43,19 @@ const pages = {
   improvements: [
     "Improvements",
     "Review reported changes and the evidence supporting them.",
+  ],
+  skills: ["Skills", "Build, activate, and test your own Omega skills."],
+  reasoning: [
+    "Reasoning",
+    "Inspect formal inference with NAL, PLN, and native ONA.",
+  ],
+  orchestration: [
+    "Orchestration",
+    "Compose reasoning and skills into inspectable workflows.",
+  ],
+  health: [
+    "Health & status",
+    "Monitor the real agent heartbeat and installed services.",
   ],
   config: ["Configuration", "Manage how Omega works in this workspace."],
 };
@@ -138,7 +152,8 @@ function upsert(collection, value, cap = 200) {
   const index = array.findIndex((item) => item.id === value.id);
   if (index >= 0) array[index] = value;
   else array.unshift(value);
-  if (collection !== "goals") array.splice(cap);
+  if (!["goals", "skills", "orchestrations"].includes(collection))
+    array.splice(cap);
 }
 function applyEvent(event) {
   if (!state || event.seq <= state.cursor) return;
@@ -154,6 +169,17 @@ function applyEvent(event) {
   if (kind === "evidence") upsert("evidence", event.data);
   if (kind === "improvement") upsert("improvements", event.data);
   if (kind === "config") state.config = event.data;
+  if (kind === "skill") upsert("skills", event.data);
+  if (kind === "reasoning") upsert("reasoning", event.data);
+  if (kind === "workflow") upsert("orchestrations", event.data);
+  if (kind === "orchestration") upsert("orchestration_runs", event.data);
+  if (kind === "telos") state.telos = event.data;
+  if (kind === "catalog") state.skill_catalog = event.data.skills;
+  if (kind === "settings") {
+    if (event.data.schema) state.settings = event.data;
+    else if (state.settings)
+      Object.assign(state.settings.values, event.data.values);
+  }
   if (kind === "request") {
     if (event.data.payload) upsert("requests", event.data);
     else
@@ -189,14 +215,22 @@ function navigate() {
   drawData();
 }
 function pageMarkup() {
+  if (["skills", "reasoning", "orchestration", "health"].includes(page))
+    return workbench.markup(page);
   if (page === "overview")
     return `<section id="agent-banner"></section><div id="metrics" class="metrics"></div><div class="overview-grid"><section class="panel"><div class="panel-heading"><h2>Recent activity <span class="live-dot"></span></h2><a href="#activity">View all ↗</a></div><div id="activity-list"></div></section><div class="stack"><section class="panel"><div class="panel-heading"><h2>Active goals</h2><a href="#goals">Manage ↗</a></div><div id="goal-list"></div></section><section class="panel"><div class="panel-heading"><h2>Latest improvement</h2><a href="#improvements">Inspect ↗</a></div><div id="improvement-list"></div></section></div></div><section class="architecture-note"><span class="mini-mark">Ω</span><div><strong>More than a conversation.</strong><p>Goals guide the work. Activity shows the process. Evidence makes it inspectable.</p></div><a href="#chat" class="button">Open conversation →</a></section>`;
   if (page === "chat")
     return `<section class="panel chat-panel"><div class="panel-heading"><h2>Omega <span class="badge">Workspace conversation</span></h2><span id="agent-label"></span></div><div id="messages" class="messages" role="log" aria-label="Conversation"></div><form id="chat-form" class="composer"><label class="sr-only" for="message">Message Omega</label><textarea id="message" name="message" required maxlength="12000" placeholder="Give Omega direction, ask a question, or explore an idea…" rows="3"></textarea><div class="composer-footer"><span>Enter to send · Shift + Enter for a new line</span><button class="button primary" type="submit">Send message ↑</button></div></form></section><section class="panel request-panel"><div class="panel-heading"><h2>Command lifecycle</h2><span class="muted">Each message has its own request ID</span></div><div id="requests"></div></section>`;
   if (page === "goals")
-    return `<div class="goals-layout"><section class="panel"><div class="panel-heading"><h2>Workspace goals</h2><span id="goal-count" class="muted"></span></div><div id="goal-list"></div></section><section class="panel new-goal"><div class="panel-heading"><h2>Create a goal</h2></div><form id="goal-form" class="form-body"><label for="goal-title">What should Omega work toward?</label><input id="goal-title" name="title" required maxlength="300" placeholder="A clear, measurable objective"><label for="goal-description">Context and success criteria</label><textarea id="goal-description" name="description" rows="6" maxlength="12000" placeholder="Describe the desired result and how to verify it."></textarea><p class="helper">Active goals are included in the agent’s next turn. Pause or finish them when priorities change.</p><button class="button primary" type="submit">+ Create goal</button></form></section></div>`;
+    return (
+      `<div class="goals-layout"><section class="panel"><div class="panel-heading"><h2>Workspace goals</h2><span id="goal-count" class="muted"></span></div><div id="goal-list"></div></section><section class="panel new-goal"><div class="panel-heading"><h2>Create a goal</h2></div><form id="goal-form" class="form-body"><label for="goal-title">What should Omega work toward?</label><input id="goal-title" name="title" required maxlength="300" placeholder="A clear, measurable objective"><label for="goal-description">Context and success criteria</label><textarea id="goal-description" name="description" rows="6" maxlength="12000" placeholder="Describe the desired result and how to verify it."></textarea><p class="helper">Active goals are included in the agent’s next turn. Pause or finish them when priorities change.</p><button class="button primary" type="submit">+ Create goal</button></form></section></div>` +
+      workbench.telosMarkup()
+    );
   if (page === "config")
-    return `<section class="panel config-panel"><div class="panel-heading"><h2>Agent behavior</h2>${statusBadge("operator controls")}</div><form id="config-form" class="form-body"><div class="setting"><div><label for="autonomy">Autonomous activity</label><p>Allow Omega to continue working between messages. Turning this off takes effect before the next autonomous turn.</p></div><input id="autonomy" name="autonomy" type="checkbox" role="switch"></div><div class="setting"><div><label for="goal-context">Include active goals</label><p>Provide active goal titles and success criteria in the agent’s context.</p></div><input id="goal-context" name="goalContext" type="checkbox" role="switch"></div><p class="helper">Direct messages remain available while autonomy is paused. A running turn finishes before changes take effect.</p><button class="button primary" type="submit">Save configuration</button></form></section><section class="panel config-panel"><div class="panel-heading"><h2>Connection & protocol</h2></div><div id="config-info" class="form-body"></div></section>`;
+    return (
+      workbench.markup(page) +
+      `<section class="panel config-panel"><div class="panel-heading"><h2>Agent behavior</h2>${statusBadge("operator controls")}</div><form id="config-form" class="form-body"><div class="setting"><div><label for="autonomy">Autonomous activity</label><p>Allow Omega to continue working between messages. Turning this off takes effect before the next autonomous turn.</p></div><input id="autonomy" name="autonomy" type="checkbox" role="switch"></div><div class="setting"><div><label for="goal-context">Include active goals</label><p>Provide active goal titles and success criteria in the agent’s context.</p></div><input id="goal-context" name="goalContext" type="checkbox" role="switch"></div><p class="helper">Direct messages remain available while autonomy is paused. A running turn finishes before changes take effect.</p><button class="button primary" type="submit">Save configuration</button></form></section><section class="panel config-panel"><div class="panel-heading"><h2>Connection & protocol</h2></div><div id="config-info" class="form-body"></div></section>`
+    );
   return `<section class="panel"><div class="panel-heading"><h2>${page === "activity" ? "Event journal" : page === "evidence" ? "Evidence library" : "Improvement results"}</h2><div class="filters"><label class="sr-only" for="search">Search records</label><input id="search" type="search" placeholder="Search records…"><label class="sr-only" for="filter">Filter records</label><select id="filter">${(page === "activity" ? ["all", "run", "request", "provider", "message", "goal", "evidence", "improvement", "config"] : page === "improvements" ? ["all", "improved", "unchanged", "regressed", "inconclusive"] : ["all", "tool_result", "agent_report"]).map((value) => `<option value="${value}">${value === "all" ? "All types" : value.replaceAll("_", " ")}</option>`).join("")}</select></div></div><div id="${page === "activity" ? "activity-list" : page === "evidence" ? "evidence-list" : "improvement-list"}"></div></section>`;
 }
 function actionButton(label, action, id = "", extra = "") {
@@ -292,13 +326,20 @@ function drawData() {
       $("#goal-context").checked = state?.config.goal_context_enabled ?? true;
     }
     $("#config-info").innerHTML = state
-      ? `<dl><dt>API</dt><dd>Omega v${state.api_version} · same origin</dd><dt>Activity transport</dt><dd>Authenticated event stream with cursor recovery</dd><dt>Instance</dt><dd><code>${escape(state.instance_id)}</code></dd><dt>Agent</dt><dd>${escape(state.agent.status)}</dd><dt>Credentials</dt><dd>Token held in this tab’s memory</dd></dl><p class="helper">Provider credentials and deployment settings are managed on the Omega host. They are never returned by this API.</p>`
+      ? `<dl><dt>API</dt><dd>Omega v${state.api_version} · same origin</dd><dt>Activity transport</dt><dd>Authenticated event stream with cursor recovery</dd><dt>Instance</dt><dd><code>${escape(state.instance_id)}</code></dd><dt>Agent</dt><dd>${escape(state.agent.status)}</dd><dt>Credentials</dt><dd>Protected expiring session cookie</dd></dl><p class="helper">Provider credentials are managed on the Omega host and never returned by this API.</p>`
       : needConnection();
   }
+  workbench.draw(page, state);
   for (const form of document.querySelectorAll("#main form"))
-    for (const control of form.querySelectorAll("button, input, textarea"))
+    for (const control of form.querySelectorAll(
+      "button, input, textarea, select",
+    ))
       control.disabled =
         !connected ||
+        Boolean(
+          control.dataset.setting &&
+          state?.settings?.locked?.[control.dataset.setting],
+        ) ||
         busyForms.has(form.id) ||
         (form.id === "chat-form" && !state?.agent.connected);
 }
@@ -400,7 +441,7 @@ async function perform(command, payload, success) {
 }
 $("#connect").addEventListener("click", () => {
   if (["connected", "reconnecting", "connecting"].includes(connection)) {
-    client.disconnect();
+    void client.logout().catch((error) => notify(error.message, true));
     notify("Disconnected. Showing the last known workspace state.");
   } else {
     $("#connection-error").hidden = true;
@@ -428,6 +469,14 @@ document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const { action, id } = button.dataset;
+  if (action.startsWith("wb-")) {
+    try {
+      await workbench.action(button);
+    } catch (error) {
+      notify(error.message, true);
+    }
+    return;
+  }
   if (action === "discard-pending") {
     client.discardPending();
     notify(
@@ -510,6 +559,10 @@ $("#main").addEventListener("submit", async (event) => {
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
   try {
+    if (form.id.startsWith("wb-")) {
+      await workbench.submit(form);
+      return;
+    }
     if (form.id === "chat-form") {
       const sent = await perform(
         "chat.send",
@@ -538,18 +591,22 @@ $("#main").addEventListener("submit", async (event) => {
         },
         "Configuration saved",
       );
+  } catch (error) {
+    notify(error.message, true);
   } finally {
     busyForms.delete(form.id);
     drawData();
   }
 });
 $("#main").addEventListener("input", (event) => {
+  workbench.changed(event);
   if (event.target.id === "search") {
     query = event.target.value.toLowerCase();
     drawData();
   }
 });
 $("#main").addEventListener("change", (event) => {
+  workbench.changed(event);
   if (event.target.id === "filter") {
     filter = event.target.value;
     drawData();
@@ -567,6 +624,36 @@ $("#main").addEventListener("keydown", (event) => {
       event.target.form.requestSubmit();
   }
 });
+async function refreshWorkbench() {
+  const response = await client.request("/workbench");
+  Object.assign(state, await response.json());
+  drawData();
+}
+workbench.initialize({
+  getState: () => state,
+  perform,
+  inspect,
+  notify,
+  refresh: refreshWorkbench,
+});
+const healthRefresh = setInterval(() => {
+  if (page === "health" && connection === "connected")
+    void refreshWorkbench().catch(() => {});
+}, 5000);
+window.addEventListener("pagehide", () => clearInterval(healthRefresh));
 window.addEventListener("hashchange", navigate);
 window.addEventListener("pagehide", () => client.disconnect());
 navigate();
+
+// The container generates this one-click sign-in link; fragments never reach
+// the server. Remove it from history immediately and keep the token in memory.
+const bootstrap = new URLSearchParams(location.hash.slice(1));
+if (bootstrap.has("connect")) {
+  const token = bootstrap.get("connect");
+  history.replaceState(null, "", "#overview");
+  void client.connect(token).catch((error) => notify(error.message, true));
+} else {
+  void client.connect("").catch((error) => {
+    if (error.status !== 401) notify(error.message, true);
+  });
+}

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Omega operator API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Authenticated commands, lifecycle events, operator projections, and reconnect recovery. See reference-omega-api.md and reference-dashboard.md for semantics."
   },
   "servers": [
@@ -13,6 +13,9 @@
   "security": [
     {
       "operatorToken": []
+    },
+    {
+      "operatorSession": []
     }
   ],
   "paths": {
@@ -502,6 +505,76 @@
           }
         }
       }
+    },
+    "/api/v1/workbench": {
+      "get": {
+        "operationId": "getWorkbench",
+        "description": "Workbench projections and live service status. Use the full snapshot for a shared event cursor.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workbench"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/session": {
+      "post": {
+        "operationId": "createSession",
+        "description": "Exchange bearer authentication for an eight-hour HttpOnly SameSite=Strict cookie. Secure is added for HTTPS requests.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "authenticated"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "clearSession",
+        "description": "Clear the browser session cookie. Does not rotate the root operator token.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "authenticated"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -510,6 +583,12 @@
         "type": "http",
         "scheme": "bearer",
         "description": "OMEGA_DASHBOARD_TOKEN; full operator authority"
+      },
+      "operatorSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "omega_session",
+        "description": "Signed, expiring same-origin session cookie issued by POST /session."
       }
     },
     "schemas": {
@@ -656,7 +735,8 @@
             "type": "string",
             "enum": [
               "conversation",
-              "autonomous"
+              "autonomous",
+              "operator"
             ]
           },
           "status": {
@@ -713,7 +793,8 @@
             "type": "string",
             "enum": [
               "tool_result",
-              "agent_report"
+              "agent_report",
+              "operator_result"
             ]
           },
           "status": {
@@ -997,6 +1078,75 @@
             "items": {
               "$ref": "#/components/schemas/Event"
             }
+          },
+          "settings": {
+            "type": "object",
+            "description": "Public schema, desired values, effective values, locked launch fields, and pending_restart keys."
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "skill_catalog": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "parameters": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "parameters"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "reasoning": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "telos": {
+            "type": "object",
+            "description": "Actual plugin goals, relations, and report."
+          },
+          "orchestrations": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "orchestration_runs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "health": {
+            "type": "object",
+            "description": "Live Health plugin snapshot; sampled separately from durable projections."
+          },
+          "ona": {
+            "type": "object",
+            "description": "Live native process availability and sessions."
+          },
+          "managed_restart": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -1011,7 +1161,17 @@
           "evidence",
           "improvements",
           "requests",
-          "activity"
+          "activity",
+          "settings",
+          "skills",
+          "skill_catalog",
+          "reasoning",
+          "telos",
+          "orchestrations",
+          "orchestration_runs",
+          "health",
+          "ona",
+          "managed_restart"
         ],
         "additionalProperties": true
       },
@@ -1196,6 +1356,888 @@
               "payload"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "settings.update"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "maxNewInputLoops": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000
+                  },
+                  "maxWakeLoops": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "sleepInterval": {
+                    "type": "number",
+                    "minimum": 0.05,
+                    "maximum": 60
+                  },
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "SmolLM3",
+                      "OpenAI",
+                      "Anthropic",
+                      "ASICloud",
+                      "ASIOne",
+                      "OpenAIAPI",
+                      "OpenRouter",
+                      "Test"
+                    ]
+                  },
+                  "maxOutputToken": {
+                    "type": "integer",
+                    "minimum": 64,
+                    "maximum": 32768
+                  },
+                  "reasoningMode": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "wakeupInterval": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 86400
+                  },
+                  "logConfigPath": {
+                    "type": "string"
+                  },
+                  "memoryDirectory": {
+                    "type": "string"
+                  },
+                  "maxFeedback": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 100000
+                  },
+                  "maxRecallItems": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "maxEpisodeRecallLines": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "maxHistory": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 200000
+                  },
+                  "chromaDbPath": {
+                    "type": "string"
+                  },
+                  "embeddingprovider": {
+                    "type": "string"
+                  },
+                  "embeddingModel": {
+                    "type": "string"
+                  },
+                  "knowledgeIndexingBackground": {
+                    "type": "boolean"
+                  },
+                  "embeddingBatchSize": {
+                    "type": "integer"
+                  },
+                  "memoryExportEnabled": {
+                    "type": "boolean"
+                  },
+                  "securityPolicyPath": {
+                    "type": "string"
+                  },
+                  "commchannel": {
+                    "type": "string"
+                  },
+                  "IRC_channel": {
+                    "type": "string"
+                  },
+                  "IRC_server": {
+                    "type": "string"
+                  },
+                  "IRC_port": {
+                    "type": "integer"
+                  },
+                  "IRC_user": {
+                    "type": "string"
+                  },
+                  "MM_URL": {
+                    "type": "string"
+                  },
+                  "MM_CHANNEL_ID": {
+                    "type": "string"
+                  },
+                  "SL_CHANNEL_ID": {
+                    "type": "string"
+                  },
+                  "SL_POLL_INTERVAL": {
+                    "type": "integer"
+                  },
+                  "SL_MAX_FILE_SIZE_MB": {
+                    "type": "integer"
+                  },
+                  "TG_CHAT_ID": {
+                    "type": "string"
+                  },
+                  "TG_ALLOWED_CHAT_IDS": {
+                    "type": "string"
+                  },
+                  "TG_POLL_TIMEOUT": {
+                    "type": "integer"
+                  },
+                  "WS_URL": {
+                    "type": "string"
+                  },
+                  "dashboardHost": {
+                    "type": "string"
+                  },
+                  "dashboardPort": {
+                    "type": "integer",
+                    "minimum": 1024,
+                    "maximum": 65535
+                  },
+                  "openaiapi_url": {
+                    "type": "string"
+                  },
+                  "openaiapi_model": {
+                    "type": "string"
+                  },
+                  "asicloud_model": {
+                    "type": "string"
+                  },
+                  "anthropic_model": {
+                    "type": "string"
+                  },
+                  "openrouter_model": {
+                    "type": "string"
+                  },
+                  "OPENROUTER_CACHE_TTL": {
+                    "type": "string"
+                  },
+                  "openai_model": {
+                    "type": "string"
+                  },
+                  "asione_model": {
+                    "type": "string"
+                  },
+                  "openClawEnabled": {
+                    "type": "string"
+                  },
+                  "openClawURL": {
+                    "type": "string"
+                  },
+                  "openClawAgent": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "localModelURL": {
+                    "type": "string"
+                  },
+                  "localModelTimeout": {
+                    "type": "integer",
+                    "minimum": 5,
+                    "maximum": 600
+                  },
+                  "localTemperature": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 2
+                  },
+                  "onaBinary": {
+                    "type": "string"
+                  },
+                  "HEALTH_PORT": {
+                    "type": "integer",
+                    "minimum": 1024,
+                    "maximum": 65535
+                  }
+                },
+                "required": [],
+                "additionalProperties": false,
+                "minProperties": 1
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "skill.save"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{1,63}$"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "parameters": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "name",
+                  "description",
+                  "parameters",
+                  "body",
+                  "enabled"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "skill.set_enabled"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "name",
+                  "enabled"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "skill.test"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "arguments": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "arguments"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "reasoning.run"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "engine": {
+                    "type": "string",
+                    "enum": [
+                      "ona",
+                      "nal",
+                      "pln"
+                    ]
+                  },
+                  "input": {
+                    "type": "string"
+                  },
+                  "session": {
+                    "type": "string"
+                  },
+                  "cycles": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  }
+                },
+                "required": [
+                  "engine",
+                  "input"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "reasoning.reset"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "session": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "session"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "system.restart"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "telos.goal.add"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "goal_id": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "individual",
+                      "collective"
+                    ]
+                  },
+                  "owner": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "proposed",
+                      "achieved",
+                      "abandoned"
+                    ]
+                  }
+                },
+                "required": [
+                  "goal_id",
+                  "scope",
+                  "owner",
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "telos.goal.status"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "goal_id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "proposed",
+                      "achieved",
+                      "abandoned"
+                    ]
+                  }
+                },
+                "required": [
+                  "goal_id",
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "telos.relation.add"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "relation": {
+                    "type": "string",
+                    "enum": [
+                      "supports",
+                      "conflicts",
+                      "subsumes",
+                      "depends-on"
+                    ]
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "relation",
+                  "source",
+                  "target"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "telos.refresh"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "orchestration.save"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "nodes": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "reasoning"
+                            },
+                            "depends_on": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "payload": {
+                              "type": "object",
+                              "properties": {
+                                "engine": {
+                                  "type": "string",
+                                  "enum": [
+                                    "ona",
+                                    "nal",
+                                    "pln"
+                                  ]
+                                },
+                                "input": {
+                                  "type": "string"
+                                },
+                                "session": {
+                                  "type": "string"
+                                },
+                                "cycles": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 1000
+                                }
+                              },
+                              "required": [
+                                "engine",
+                                "input"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind",
+                            "depends_on",
+                            "payload"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "skill"
+                            },
+                            "depends_on": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "payload": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "arguments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "arguments"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind",
+                            "depends_on",
+                            "payload"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "message"
+                            },
+                            "depends_on": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "payload": {
+                              "type": "object",
+                              "properties": {
+                                "text": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "text"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind",
+                            "depends_on",
+                            "payload"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 40
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "nodes"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "orchestration.start"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "workflow_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "workflow_id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "command": {
+                "const": "orchestration.set_status"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "run_id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "running",
+                      "paused",
+                      "cancelled"
+                    ]
+                  }
+                },
+                "required": [
+                  "run_id",
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "request_id",
+              "command",
+              "payload"
+            ],
+            "additionalProperties": false
           }
         ]
       },
@@ -1214,6 +2256,93 @@
           "replayed"
         ],
         "additionalProperties": true
+      },
+      "Workbench": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "object",
+            "description": "Public schema, desired values, effective values, locked launch fields, and pending_restart keys."
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "skill_catalog": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "parameters": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "parameters"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "reasoning": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "telos": {
+            "type": "object",
+            "description": "Actual plugin goals, relations, and report."
+          },
+          "orchestrations": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "orchestration_runs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "health": {
+            "type": "object",
+            "description": "Live Health plugin snapshot; sampled separately from durable projections."
+          },
+          "ona": {
+            "type": "object",
+            "description": "Live native process availability and sessions."
+          },
+          "managed_restart": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "settings",
+          "skills",
+          "skill_catalog",
+          "reasoning",
+          "telos",
+          "orchestrations",
+          "orchestration_runs",
+          "health",
+          "ona",
+          "managed_restart"
+        ],
+        "additionalProperties": false
       }
     }
   }

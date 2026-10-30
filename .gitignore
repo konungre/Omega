@@ -29,3 +29,9 @@ logs/*.log
 logs/*.log.*
 # Operator API state
 memory/dashboard.sqlite3*
+
+# Private persistent dashboard state
+memory/.dashboard-token
+memory/ona.sqlite3*
+memory/operator-config.json
+memory/.restart-requested

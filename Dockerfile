@@ -69,6 +69,38 @@ SentenceTransformer(model_name)
 print("Model download complete.")
 PY
 
+# Native reasoner and local CPU model runtime, pinned to audited source revisions.
+FROM ${SWIPL_IMAGE} AS native-tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates git build-essential cmake python3 && rm -rf /var/lib/apt/lists/*
+# Serialize the memory-heavy Python/embedding and native compilation stages.
+COPY --from=builder /PeTTa/run.sh /tmp/omega-builder-ready
+ARG ONA_REF=dc4efd0abd520cdb79bf53bfa3c285ebb24f2e8a
+ARG LLAMA_REF=a34de8618b25dfc32ee43749db47d767a9f0a25d
+RUN git init /ona \
+ && git -C /ona remote add origin https://github.com/opennars/OpenNARS-for-Applications.git \
+ && git -C /ona fetch --depth=1 origin "$ONA_REF" \
+ && git -C /ona checkout FETCH_HEAD \
+ && cd /ona && sh build.sh
+RUN git init /llama \
+ && git -C /llama remote add origin https://github.com/ggml-org/llama.cpp.git \
+ && git -C /llama fetch --depth=1 origin "$LLAMA_REF" \
+ && git -C /llama checkout FETCH_HEAD
+# Keep compilation objects across interrupted builds; only the finished binary
+# is copied into the image layer. The cache is never required at runtime.
+RUN --mount=type=cache,id=omega-llama-build,target=/llama/build \
+    cmake -S /llama -B /llama/build -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF \
+      -DGGML_CUDA=OFF -DGGML_VULKAN=OFF -DLLAMA_CURL=OFF \
+      -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF \
+ && cmake --build /llama/build --target llama-server -j 2 \
+ && mkdir -p /native-bin && cp /llama/build/bin/llama-server /native-bin/omega-llama-server
+
+FROM ${SWIPL_IMAGE} AS local-model
+RUN apt-get update && apt-get install -y --no-install-recommends python3 ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY scripts/fetch-default-model.py /tmp/fetch-default-model.py
+RUN python3 /tmp/fetch-default-model.py
+
 FROM builder AS versioned-source
 
 WORKDIR /omega-source
@@ -91,17 +123,20 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     HF_HOME=/opt/huggingface \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
     SENTENCE_TRANSFORMERS_HOME=/opt/sentence_transformers
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
       python3 \
-      libopenblas-dev \
-      libblas-dev \
-      liblapack-dev \
-      gfortran \
-      libgflags-dev \
+      libopenblas0-pthread \
+      libblas3 \
+      liblapack3 \
+      libgfortran5 \
+      libgomp1 \
+      libgflags2.2 \
       nano \
       git \
       nginx-light \
@@ -113,10 +148,23 @@ RUN apt-get update \
 
 WORKDIR /PeTTa
 
+COPY --from=native-tools /ona/NAR /usr/local/bin/omega-nar
+COPY --from=native-tools /ona/LICENSE /usr/share/licenses/omega-ona/LICENSE
+COPY --from=native-tools /native-bin/omega-llama-server /usr/local/bin/omega-llama-server
+COPY --from=native-tools /llama/LICENSE /usr/share/licenses/omega-llama/LICENSE
+RUN python3 - <<'PYDEPS'
+import subprocess
+for binary in ('/usr/local/bin/omega-nar', '/usr/local/bin/omega-llama-server'):
+    result = subprocess.run(['ldd', binary], text=True, capture_output=True)
+    print(binary + ':\n' + result.stdout)
+    if result.returncode or 'not found' in result.stdout:
+        raise SystemExit('Missing native runtime dependencies: ' + binary)
+PYDEPS
+COPY --link --from=local-model /opt/omega/models /opt/omega/models
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder /PeTTa /PeTTa
-COPY --from=builder /opt/huggingface /opt/huggingface
-COPY --from=builder /opt/sentence_transformers /opt/sentence_transformers
+COPY --chown=65534:65534 --from=builder /opt/huggingface /opt/huggingface
+COPY --chown=65534:65534 --from=builder /opt/sentence_transformers /opt/sentence_transformers
 
 # setup nginx proxy
 RUN usermod -a -G tty www-data
@@ -144,8 +192,11 @@ RUN cp ${OMEGA_DIR}/run.metta /PeTTa/run.metta \
  && chown 65534:65534 /memory-transfer \
  && chmod 0700 /memory-transfer \
  && find ${MEMORY_DIR} -type f -exec chmod 0644 {} \; \
- && chmod 0444 ${MEMORY_DIR}/prompt.txt \
- && chown -R 65534:65534 /opt/huggingface /opt/sentence_transformers
+ && chmod 0444 ${MEMORY_DIR}/prompt.txt
 
-ENTRYPOINT ["/PeTTa/repos/Omega/entrypoint.sh"]
+EXPOSE 8088
+VOLUME ["/PeTTa/repos/Omega/memory"]
+HEALTHCHECK --interval=15s --timeout=5s --start-period=180s --retries=3 \
+  CMD curl --fail --silent http://127.0.0.1:8081/health || exit 1
+ENTRYPOINT ["python3", "/PeTTa/repos/Omega/scripts/docker-entrypoint.py"]
 CMD []

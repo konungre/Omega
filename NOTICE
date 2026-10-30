@@ -10,3 +10,20 @@ The dashboard theme tokens adapt OpenClaw Control UI source at commit
 23376e5f0a2672be4f6df88f4ad31767d306803a.
 Copyright (c) 2026 OpenClaw Foundation. Licensed under the MIT License;
 see dashboard/vendor/OPENCLAW-LICENSE.
+
+Bundled local model and native runtime
+--------------------------------------
+SmolLM3-3B by HuggingFaceTB is licensed under Apache-2.0.
+Original model: https://huggingface.co/HuggingFaceTB/SmolLM3-3B
+GGUF distribution: https://huggingface.co/ggml-org/SmolLM3-3B-GGUF
+Pinned GGUF revision: 4965cb60b150737b68a0408c36aeefb65078f894
+File: SmolLM3-Q4_K_M.gguf
+SHA-256: 8334b850b7bd46238c16b0c550df2138f0889bf433809008cc17a8b05761863e
+License copy: licenses/SmolLM3-APACHE-2.0
+The image retains the MIT licenses for llama.cpp and native ONA in
+/usr/share/licenses/omega-llama and /usr/share/licenses/omega-ona.
+
+Bundled Telos Goals and Health plugins retain their Apache-2.0 licenses.
+Exact upstream revisions are recorded in plugins/UPSTREAM.json.
+Local adaptations: structured Telos argument overloads and public graph queries;
+Telos test output formatting for current PeTTa; Health lowercase version lookup.

@@ -1,4 +1,6 @@
 import os
+import json
+import sys
 import logging
 import pathlib
 import re
@@ -7,6 +9,8 @@ import yaml
 logger = logging.getLogger(__name__)
 
 _REPO = pathlib.Path(__file__).parent.parent.resolve()
+if str(_REPO) not in sys.path:
+    sys.path.insert(0, str(_REPO))
 _CONFIG = {}
 _COMMAND_LINE = {}
 _CONFIG_FILE = {}
@@ -33,6 +37,31 @@ def init_config(command_line):
             _CONFIG_FILE = {}
     except:
         logger.exception(f"Could not load configuration file {config_path}")
+    memory = _COMMAND_LINE.get("memoryDirectory", os.environ.get("OMEGA_memoryDirectory", _CONFIG_FILE.get("memoryDirectory", str(_REPO / "memory"))))
+    overrides = pathlib.Path(str(memory)) / "operator-config.json"
+    if overrides.exists():
+        with overrides.open() as source:
+            values = json.load(source)
+        from omega_api.configuration import validate
+        if values:
+            _CONFIG_FILE.update(validate(values))
+
+
+def apply_operator_config(values):
+    """Apply persisted overrides on the agent thread; CLI/environment still win."""
+    from omega_api.configuration import SCHEMA, validate
+    validate(values)
+    memory = pathlib.Path(str(config_get_by_key("memoryDirectory", str(_REPO / "memory"))))
+    path = memory / "operator-config.json"
+    previous = json.loads(path.read_text()) if path.exists() else {}
+    previous.update(values)
+    temporary = path.with_suffix('.tmp')
+    temporary.write_text(json.dumps(previous, indent=2) + "\n")
+    temporary.replace(path)
+    _CONFIG_FILE.update(values)
+    for key in values:
+        _CONFIG.pop(key, None)
+    return [[key, config_get_by_key(key, SCHEMA[key]['default'])] for key in values if SCHEMA[key]['live']]
 
 def config_get_by_key(key, default=None):
     """Get configuration parameter from the list of sources: (1) command line
@@ -88,3 +117,7 @@ def command_line_to_dict(list):
         else:
             dict[kv[0]] = True
     return dict
+
+
+def apply_operator_json(raw):
+    return apply_operator_config(json.loads(str(raw)))

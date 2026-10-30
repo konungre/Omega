@@ -100,7 +100,10 @@ export class OmegaClient {
   async request(path, options = {}) {
     const response = await this.fetcher(`/api/v1${path}`, {
       ...options,
-      headers: { Authorization: `Bearer ${this.token}`, ...options.headers },
+      headers: {
+        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+        ...options.headers,
+      },
       cache: "no-store",
     });
     if (!response.ok) {
@@ -121,6 +124,11 @@ export class OmegaClient {
     this.onStatus("connecting");
     try {
       await this.snapshot(controller.signal);
+      if (token)
+        await this.request("/session", {
+          method: "POST",
+          signal: controller.signal,
+        });
       if (!controller.signal.aborted) void this.listen(controller);
     } catch (error) {
       if (!controller.signal.aborted) {
@@ -248,6 +256,13 @@ export class OmegaClient {
     this.pending.clear();
     this.pendingInstances.clear();
     this.savePending();
+  }
+  async logout() {
+    try {
+      await this.request("/session", { method: "DELETE" });
+    } finally {
+      this.disconnect();
+    }
   }
   async evidence(id) {
     return (await this.request(`/evidence/${encodeURIComponent(id)}`)).json();

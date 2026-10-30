@@ -7,56 +7,46 @@ Omega itself. The browser never calls a model provider or the OpenClaw Gateway.
 The interface adapts OpenClaw's dark theme tokens and sidebar/control-panel
 patterns. See `dashboard/README.md` for provenance and its retained MIT license.
 
-## Run with an agent
+## Run the bundled image
 
-Use the normal Omega installation in PeTTa. From the PeTTa directory:
+Follow the [single-image quickstart](../README.md#local-dashboard-one-docker-image). The container bundles SmolLM3, ONA, Telos Goals, and Health. It generates a token and prints a localhost sign-in link. The link uses a URL fragment, which is removed immediately after reading; the fragment is not sent to the HTTP server. Treat the link as a credential.
+
+After authentication the dashboard uses an eight-hour HttpOnly, SameSite=Strict cookie. Refreshing reconnects and recovers activity. Disconnect clears the browser cookie. The root token is never written to browser storage. The memory directory retains the generated root token for container restarts.
+
+The local provider keeps conversational replies separate from action requests and passes visible replies through Omega’s normal `send` skill. Like any small local model, it can choose an unsuitable tool; inspect activity and evidence for consequential work.
+
+For source installations in PeTTa:
 
 ```sh
 export OMEGA_DASHBOARD_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 sh run.sh run.metta commchannel=dashboard
 ```
 
-Open <http://127.0.0.1:8088> and enter that token. Keep the token for future
-connections: the browser holds it in memory and forgets it on reload or
-Disconnect. The dashboard channel is opt-in; existing channels keep their
-current defaults. The same token authorizes all operator actions and reads.
-
-The API and UI require Python 3.10+ on a POSIX host. They use Python's standard
-library, including SQLite and advisory file locking. There is no UI build,
-JavaScript dependency installation, or extra Python dependency. Normal agent
-execution still requires Omega's existing dependencies and PeTTa.
-
-Deployment settings in `config/config.yaml`:
+Open <http://127.0.0.1:8088> and enter the token. Source installations need the local model service and native ONA executable configured separately; Docker includes them.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `commchannel` | `irc` | Select `dashboard` to attach the API to the agent. |
-| `dashboardHost` | `127.0.0.1` | Listener address. |
-| `dashboardPort` | `8088` | HTTP port. |
-| `memoryDirectory` | Existing Omega default | Contains `dashboard.sqlite3` and its WAL files. |
+| `provider` | `SmolLM3` | Bundled local model provider. |
+| `commchannel` | `dashboard` | Attach the API to the agent. |
+| `dashboardHost` | `127.0.0.1` | Listener address; Docker binds inside its container. |
+| `dashboardPort` | `8088` | Dashboard HTTP port. |
+| `memoryDirectory` | `memory` | Durable agent, dashboard, ONA, and operator configuration state. |
 
-The token comes only from `OMEGA_DASHBOARD_TOKEN`, with a minimum length of 32
-bytes. It deliberately bypasses the configuration resolver, which logs resolved
-configuration values. Do not put it in the URL or a command payload.
+The API/UI use Python's standard library and require no JavaScript build. Normal agent execution requires PeTTa and Omega's dependencies. The token bypasses the configuration resolver so it is not logged as a configuration value. Remote access requires a TLS reverse proxy preserving the request host and disabling response buffering on `/api/v1/events`. Cross-origin requests are rejected. The dashboard shares the agent's host trust boundary.
 
-The container entrypoint forwards this dedicated token to the dashboard server.
-For Docker, publish the port and bind inside the container explicitly, for example:
+## Workbench controls
 
-```sh
-docker run --rm -p 127.0.0.1:8088:8088 \
-  -e OMEGA_DASHBOARD_TOKEN \
-  -e ANTHROPIC_API_KEY \
-  singularitynet/omega:<image-built-from-this-checkout> \
-  commchannel=dashboard dashboardHost=0.0.0.0
-```
+**Configuration** edits the public typed configuration schema. Changes persist to `operator-config.json`; live settings are applied on the agent thread, and other fields take effect after restart. Docker provides a **Restart agent** control. Command-line and environment values retain precedence. Credentials are configured outside the public editor. Changing a storage path does not migrate its data.
 
-Use an image built from this checkout; an older released image does not include
-the dashboard. Retain your normal persistent memory volume for durable API
-state. Remote access should use a TLS reverse proxy, preserve the request host,
-and disable response buffering on `/api/v1/events`. The API rejects cross-origin
-browser requests and supplies no CORS bypass. This embedded API shares the agent
-process and host trust boundary; it does not isolate the operator token from
-agent-accessible Python or shell execution.
+**Skills** builds named MeTTa functions with declared string parameters, a description, one expression body, and an activation switch. Save registers the definition on the agent thread. Test invokes the registered skill and retains evidence. Active custom skills restore after restart; disabling removes the skill from the agent catalog. Authenticated custom code executes with the same privileges as Omega's own skills.
+
+**Reasoning** runs NAL, PLN, or native ONA and retains its output and evidence. ONA sessions persist independently and can be reset. [Native ONA reference](./reference-lib-ona.md).
+
+**Orchestration** saves dependency graphs of reasoning, skill, and message steps. Run, pause, resume, cancel, and per-step evidence are available. [Workflow semantics](./reference-orchestration.md#dashboard-workflows).
+
+**Goals** includes the bundled Telos plugin's individual/collective goals, owners, statuses, relations, conflict and alignment reports. Operator goals are mirrored into Telos with an `operator-` prefix. Operator lifecycle controls own those mirrored statuses; formal Telos goals can also be created directly. The graph is persisted and restored into the real plugin after restart.
+
+**Health & status** displays the bundled plugin's actual heartbeat and process metrics, model selection, and ONA sessions. Docker's health check uses the plugin endpoint. Health is a runtime observation, not proof that a model's answer is correct.
 
 ## Inspect without a running agent
 
@@ -93,10 +83,9 @@ using the same file fails before recovery; stop its owner before opening it here
   regressed, or inconclusive outcomes and reference existing evidence. They are
   clearly labeled agent reports. Ordinary tool calls do not fabricate measured
   improvements or proof of correctness.
-- **Configuration:** autonomy and active-goal context can be enabled/disabled.
+- **Configuration:** typed public Omega settings, autonomy, and active-goal context can be edited.
   Autonomy pause is cooperative at turn boundaries. Direct messages still run
-  while autonomy is paused. Provider credentials and arbitrary host settings
-  cannot be read or written through this surface.
+  while autonomy is paused. Provider credentials cannot be read or written through this surface.
 
 An HTTP command's acceptance means it was durably recorded, not that the model
 finished the work. A chat request completes after its first consuming iteration

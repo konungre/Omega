@@ -37,6 +37,8 @@ def text(value, name, limit=12000):
 
 class Store:
     def __init__(self, path):
+        self.command_handlers = {}
+        self.deferred_commands = {"chat.send"}
         self.owner_file = None
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -167,7 +169,7 @@ class Store:
                             (identifier, command, encode(payload), "accepted", None, stamp, stamp))
             self.event("request.accepted", {"id": identifier, "command": command}, identifier)
             result = self._apply(command, payload, identifier, agent_connected)
-            if command != "chat.send":
+            if command not in self.deferred_commands:
                 self.finish(identifier, result=result)
             return self.request(identifier), False
 
@@ -188,7 +190,7 @@ class Store:
             description = payload.get("description", "")
             require(isinstance(description, str) and len(description) <= 12000, "description must be text of at most 12000 characters")
             goal = {"id": identifier, "title": title, "description": description,
-                    "status": "active", "created_at": now(), "updated_at": now()}
+                    "status": "active", "graph_sync": "pending", "created_at": now(), "updated_at": now()}
             self.put("goals", goal)
             self.event("goal.created", goal, identifier)
             return goal
@@ -201,7 +203,7 @@ class Store:
             require(status in ("active", "paused", "completed", "cancelled"), "Unknown goal status")
             require(goal["status"] not in ("completed", "cancelled") or goal["status"] == status,
                     "A terminal goal cannot be reopened; create a new goal", 409, "invalid_transition")
-            goal.update(status=status, updated_at=now())
+            goal.update(status=status, updated_at=now(), graph_sync="pending")
             self.put("goals", goal)
             self.event("goal.updated", goal, identifier)
             return goal
@@ -220,7 +222,19 @@ class Store:
                     "Only queued messages can be cancelled; running tool calls cannot be interrupted", 409, "invalid_transition")
             self.finish(target["id"], "cancelled")
             return {"cancelled": target["id"]}
+        if command in self.command_handlers:
+            return self.command_handlers[command](payload, identifier)
         raise APIError(400, "unknown_command", f"Unsupported command: {command}")
+
+    def claim_control(self):
+        with self.transaction():
+            row = self.db.execute("SELECT id FROM requests WHERE command!='chat.send' AND status='accepted' ORDER BY rowid LIMIT 1").fetchone()
+            if not row:
+                return None
+            self.db.execute("UPDATE requests SET status='running',updated_at=? WHERE id=?", (now(), row[0]))
+            record = self.request(row[0])
+            self.event("request.started", record, row[0])
+            return record
 
     def claim_message(self):
         with self.transaction():

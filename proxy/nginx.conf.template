@@ -1,5 +1,5 @@
 worker_processes 1;
-error_log /dev/stderr warn;
+error_log stderr warn;
 pid       /tmp/nginx.pid;
 
 events {
@@ -13,7 +13,7 @@ http {
     uwsgi_temp_path       /tmp/uwsgi;
     scgi_temp_path        /tmp/scgi;
 
-    access_log /dev/stdout;
+    access_log /opt/nginx/access.log;
 
     client_max_body_size 16m;
 

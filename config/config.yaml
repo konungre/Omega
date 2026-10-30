@@ -9,9 +9,9 @@ sleepInterval: 1
 # LLM model to load overrides *_model parameters see below
 #model: 
 # LLM provider id, see the list below in the Providers section
-provider: Anthropic
+provider: SmolLM3
 # Output cap passed to the provider
-maxOutputToken: 6000
+maxOutputToken: 1024
 # Reasoning-effort hint passed to the provider
 reasoningMode: medium
 # How long idle before the next scheduled wake-up (seconds)
@@ -31,7 +31,7 @@ maxRecallItems: 20
 # Lines returned by `episodes`
 maxEpisodeRecallLines: 20
 # Tail of `memory/history.metta` included in the prompt (chars)
-maxHistory: 30000
+maxHistory: 12000
 # ChromaDB persistence directory used for long-term memory portability.
 chromaDbPath: "./chroma_db"
 # `Local` (Python-side model) or the id of a provider serving OpenAI-compatible embeddings: `OpenAI`, `ASICloud`
@@ -57,10 +57,10 @@ securityPolicyPath: "./repos/Omega/profile/policy.yaml"
 
 # Identifier of the communication channel for agent to use
 # see the list below
-commchannel: irc
+commchannel: dashboard
 
 # IRC
-# Enabled with commchannel: irc
+# Enabled with commchannel: dashboard
 # IRC channel to join 
 IRC_channel: "##omega"
 # IRC server hostname
@@ -131,7 +131,7 @@ openaiapi_model: "qwen3.5:9b"
 asicloud_model: "minimax/minimax-m3"
 
 # Anthropic
-# Enabled with provider: Anthropic
+# Enabled with provider: SmolLM3
 # Default model
 anthropic_model: "claude-opus-4-8"
 
@@ -180,3 +180,12 @@ openClawEnabled: disabled
 # See plugins/openclaw/README.md.
 openClawURL: "http://172.17.0.1:18789"
 openClawAgent: "main"
+
+# Bundled local model (no API key required)
+model: SmolLM3-3B
+localModelURL: "http://127.0.0.1:8089/v1"
+localModelTimeout: 180
+localTemperature: 0.2
+# Native OpenNARS-for-Applications
+onaBinary: "/usr/local/bin/omega-nar"
+HEALTH_PORT: 8081

@@ -28,7 +28,33 @@ of approximately 200 lines of code.
 
 ---
 
-## Installation
+## Local dashboard: one Docker image
+
+The default image bundles SmolLM3-3B (Q4_K_M), its CPU model server, native ONA, Telos Goals, Health/Status, and the Omega dashboard. It needs no API keys, model downloads at startup, plugin installation, or configuration files.
+
+Build this branch once, then run the image:
+
+```sh
+git clone --branch feat/omega-dashboard-api https://github.com/konungre/Omega.git
+cd Omega
+docker build -t omega-dashboard .
+docker run --name omega -p 127.0.0.1:8088:8088 omega-dashboard
+```
+
+Open the sign-in link printed in the container logs. It contains a generated dashboard token; keep it private. The dashboard exchanges it for an expiring protected session cookie, so page refreshes stay connected. Stop with Ctrl+C and restart with `docker start -a omega`.
+
+Allow 10 GB of Docker memory and about 100 GB of Docker disk capacity for the build, while leaving enough RAM for other host applications. The running agent needs less than the full build allocation. The image includes a roughly 1.9 GB quantized language model and embedding dependencies; its first build downloads these assets. CPU speed affects response time. No GPU is required.
+
+Docker creates persistent memory storage automatically. To keep the same memory when replacing the container, name that storage explicitly:
+
+```sh
+docker run --name omega -p 127.0.0.1:8088:8088 -v omega-memory:/PeTTa/repos/Omega/memory omega-dashboard
+```
+
+The dashboard includes conversation, autonomous activity, goals and Telos relations, evidence, improvement reports, configuration, custom skills, reasoning, orchestration, and live health. [Dashboard guide](docs/reference-dashboard.md).
+
+## Source installation
+
 
 Prerequisites: Git, Python 3.10 or later including dev headers, Pip and [venv](https://docs.python.org/3/library/venv.html) library, C compiler (for building [janus-swi](https://pypi.org/project/janus-swi/) library)
 
@@ -66,7 +92,7 @@ python3 -m pip install -r ./repos/Omega/requirements.txt
 ```
 ---
 
-## Run Omega in Docker
+## Legacy cloud-provider Docker launcher
 
 Ensure that you have [Docker installed](https://docs.docker.com/engine/install/)
 

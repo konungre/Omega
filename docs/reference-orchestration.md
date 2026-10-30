@@ -1,6 +1,16 @@
 # Reference — Orchestration
 
-Omega exposes two reasoning engines (NAL and PLN) plus direct memory recall. The LLM decides which to use, when to stop, and whether to act on a result. This page catalogues those decision policies. (ONA is a planned third engine — see [reference-lib-ona.md](./reference-lib-ona.md) for its experimental, not-installed status.)
+Omega provides NAL, PLN, native ONA, and direct memory recall. The model can choose skills during its normal loop, and operators can build explicit workflows in the dashboard.
+
+## Dashboard workflows
+
+Open **Orchestration**, name a workflow, and add reasoning, registered-skill, or message steps. Choose dependencies to determine which steps must complete first. Save the definition and start a run. A saved definition is reusable; each run retains its own snapshot, node statuses, output, and evidence.
+
+Dependencies must form an acyclic graph. The agent thread runs one ready node at a time. Reasoning executes the selected engine directly; skill calls execute registered Omega skills with string arguments. Skill availability is checked again immediately before execution.
+
+Pause stops scheduling subsequent nodes. Cancel skips queued nodes; an already executing node may finish. After a process interruption, the run requires explicit resume so effects are not automatically repeated. Resuming retries interrupted nodes and can repeat their external effects. A failed node stops the run and skips its remaining queued nodes.
+
+These workflow controls are independent of the model's autonomous planning. Pausing autonomy does not prevent an explicit operator command or workflow from executing.
 
 ---
 
@@ -16,7 +26,7 @@ The LLM uses **heuristic triage**: recognize the reasoning shape, then pick the 
 | Multiple instances → generalization | Induction + Revision | NAL `\|-` |
 | Property-based categorical inference | Modus Ponens | PLN `\|~` |
 | Independent evidence to merge | Revision | NAL or PLN |
-| Real-time temporal sequences | Temporal inference | (no stock engine — ONA is the planned target but not installed; fall back to NAL with external temporal grounding) |
+| Real-time temporal sequences | Temporal inference | Native ONA |
 | Evidence conflicts | Revision | NAL / PLN |
 | Novel hypothesis generation | Abduction / Induction | NAL |
 
@@ -130,5 +140,5 @@ Standard recovery:
 
 - [reference-lib-nal.md](./reference-lib-nal.md) — NAL rules and truth formulas.
 - [reference-lib-pln.md](./reference-lib-pln.md) — PLN rules.
-- [reference-lib-ona.md](./reference-lib-ona.md) — ONA temporal reasoning (experimental, not installed).
+- [reference-lib-ona.md](./reference-lib-ona.md) — native ONA temporal and procedural reasoning.
 - [reference-failure-modes.md](./reference-failure-modes.md) — documented failure modes and mitigations.

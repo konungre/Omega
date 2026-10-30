@@ -1,7 +1,7 @@
 # Omega operator API v1
 
 Base path: `/api/v1`. All API endpoints require
-`Authorization: Bearer <OMEGA_DASHBOARD_TOKEN>`. The dashboard assets are public;
+`Authorization: Bearer <OMEGA_DASHBOARD_TOKEN>` or the protected session cookie issued by `POST /session`. The dashboard assets are public;
 agent/operator data is authenticated. All endpoints disable caching. API errors
 have the form `{"error":{"code":"…","message":"…"}}`.
 
@@ -11,6 +11,8 @@ have the form `{"error":{"code":"…","message":"…"}}`.
 | --- | --- | --- |
 | GET | `/openapi.json` | Machine-readable authenticated API contract. |
 | GET | `/snapshot` | Atomic projections and event cursor; includes `api_version`, `instance_id`, `agent`, `config`, `goals`, `messages`, `runs`, `evidence`, `improvements`, `requests`, `activity`. |
+| POST / DELETE | `/session` | Create an eight-hour signed HttpOnly cookie / clear the browser cookie. |
+| GET | `/workbench` | Settings, skills, reasoning, Telos, workflows, and live Health/ONA status. |
 | POST | `/commands` | Authenticated command submission/retry. |
 | GET | `/requests/{request_id}` | Durable status, original command/payload, timestamps, result. |
 | GET | `/evidence/{evidence_id}` | Full stored evidence, including records outside the snapshot window. |
@@ -41,12 +43,37 @@ persists for the lifetime of the database. Replies contain `request` and
 | `chat.send` | `{ "text": "…" }` | Queue one message, maximum 12,000 trimmed characters; requires an attached agent. Queue capacity: 256. |
 | `goal.create` | `{ "title": "…", "description": "…" }` | Create active goal. Title: 1–300 trimmed characters; optional description: at most 12,000 characters. Goal ID equals creation request ID. |
 | `goal.set_status` | `{ "goal_id": "…", "status": "paused" }` | Status: `active`, `paused`, `completed`, `cancelled`. Terminal goals cannot be reopened. |
-| `config.update` | `{ "autonomy_enabled": false }` | One or both boolean fields `autonomy_enabled`, `goal_context_enabled`; no arbitrary config writes. |
+| `config.update` | `{ "autonomy_enabled": false }` | One or both boolean fields `autonomy_enabled`, `goal_context_enabled`; controls autonomy and goal context. Public Omega settings use `settings.update`. |
 | `request.cancel` | `{ "request_id": "…" }` | Cancel an accepted chat command. Rejects running and terminal commands. |
 
 Unknown commands/fields and invalid types are rejected before committing any
 request or event. Reads/mutations require the same operator token. There are no
-public reads, cookies, token-in-query authentication, or cross-origin exceptions.
+public data reads, token-in-query authentication, or cross-origin exceptions. The dashboard removes its bootstrap fragment and uses an expiring HttpOnly, SameSite=Strict cookie; explicit invalid bearer headers are rejected even if a valid cookie is present.
+
+## Workbench commands
+
+| Command | Payload | Behavior |
+| --- | --- | --- |
+| `settings.update` | Public configuration key/value map | Validated against `config/dashboard-schema.json`, persisted and applied on the main agent thread. Launch-locked fields return `409 setting_locked`. |
+| `skill.save` | `name`, `description`, `parameters` (strings), `body`, `enabled` | Create or replace one custom MeTTa skill. |
+| `skill.set_enabled` | `name`, `enabled` | Register or remove a custom skill. |
+| `skill.test` | `name`, `arguments` (strings) | Invoke a registered skill and retain evidence. |
+| `reasoning.run` | `engine`, `input`, optional ONA `session`, `cycles` | Run `nal`, `pln`, or `ona` on the agent thread. |
+| `reasoning.reset` | `session` | Clear a native ONA session and its journal. |
+| `telos.goal.add` | `goal_id`, `scope`, `owner`, `status` | Add a goal through the actual Telos plugin. |
+| `telos.goal.status` | `goal_id`, `status` | Change a formal Telos goal status. |
+| `telos.relation.add` | `relation`, `source`, `target` | Add supports, conflicts, subsumes, or depends-on relation. |
+| `telos.refresh` | `{}` | Refresh the plugin report. |
+| `orchestration.save` | `id`, `name`, `nodes` | Save an acyclic graph of up to 40 typed nodes. |
+| `orchestration.start` | `workflow_id` | Create a run with a snapshot of its definition. |
+| `orchestration.set_status` | `run_id`, `status` | Cooperative running, paused, or cancelled state. |
+| `system.restart` | `{}` | Managed Docker only: complete this request durably, then restart the agent with saved settings. |
+
+All except workflow definition/run controls are deferred jobs. They can be durably queued in inspection mode and execute when an attached agent consumes them. Acceptance is `202`; inspect the durable request for its eventual outcome. Workbench job runs use `kind: operator`, and their evidence uses `kind: operator_result`. A workflow start request completes once it creates the run; subsequent node progress belongs to `orchestration_runs`.
+
+The snapshot includes `settings`, `skills`, `skill_catalog`, `reasoning`, `telos`, `orchestrations`, `orchestration_runs`, `health`, `ona`, and `managed_restart`. Durable projections share the snapshot cursor lock. Live Health and ONA process status are separately sampled observations and have no journal cursor guarantee.
+
+Additional event families are `settings.updated|applied`, `skill.updated`, `catalog.updated`, `reasoning.updated`, `telos.updated`, `workflow.updated`, and `orchestration.updated`.
 
 ## Request and run lifecycles
 
@@ -55,7 +82,7 @@ Accepted chat can transition to `cancelled`. Atomic controls transition from
 `accepted` directly to `completed` in one transaction. `request.started` denotes
 transition to `running`. Provider turns are separate runs:
 `running → completed | failed | interrupted`, with `kind` `conversation` or
-`autonomous`. `run.started` contains the active `goal_ids` and optional chat
+`autonomous`, or `operator`. `run.started` contains the active `goal_ids` and optional chat
 `request_id`. `request.result.run_id` links a completed chat to its first turn.
 A run completes when that iteration's tools finish; it is not proof the goal was
 achieved. Goal completion is an explicit operator action.

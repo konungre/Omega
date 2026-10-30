@@ -56,3 +56,19 @@
 - name: openclaw
   loader: metta
   location: "{REPO}/plugins/openclaw"
+
+- name: smollm3
+  loader: python
+  location: "{REPO}/providers"
+
+- name: ona
+  loader: metta
+  location: "{REPO}/plugins/ona"
+
+- name: telos_goals
+  loader: metta
+  location: "{REPO}/plugins/telos-goals"
+
+- name: health
+  loader: metta
+  location: "{REPO}/plugins/health"

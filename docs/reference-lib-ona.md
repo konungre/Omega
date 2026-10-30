@@ -1,50 +1,38 @@
-# Reference — ONA (OpenNARS for Applications)
+# Reference — Native ONA
 
-ONA is a lightweight, real-time implementation of NARS created by Dr. Patrick Hammer. **ONA is not installed by default in Omega.** There are no ONA bindings in the repository, no `lib_ona.metta`, and no dedicated operator in the `(metta ...)` skill surface. The stock install ships two formal engines — symbolic NAL (`|-`) and probabilistic PLN (`|~`).
+Omega installs [OpenNARS for Applications](https://github.com/opennars/OpenNARS-for-Applications) by default. The Docker image includes the native executable; the `ona` plugin starts its Python bridge automatically. This is the real Narsese engine, alongside the existing MeTTa NAL (`|-`) and PLN (`|~`) engines.
 
-This page exists because ONA is named in the project's architectural vision and has been an experimental target — see [Status](#status-partly-successful-self-building-experiment) below.
+## Dashboard
 
-## What ONA would add, if wired up
+Open **Reasoning**, select **ONA**, enter Narsese, and run it. Results include answers, derivations, truth values, temporal occurrence times, operation proposals, and the native transcript. Each job has a request ID, lifecycle events, and retained evidence.
 
-- **Throughput** — ONA can process thousands of inference steps per second.
-- **Temporal reasoning** — reasoning about before/after, cause-and-effect, and sensorimotor loops.
-- **Real-time capability** — inference on a millisecond budget.
+```text
+<robin --> bird>.
+<bird --> animal>.
+<robin --> animal>?
+```
 
-## When ONA would be the right engine
+Use `:|:` for current events, `!` for goals, `?` for questions, and `.` for beliefs. The session field isolates reasoning contexts. The cycle field allocates 0–1000 inference steps after input. Reset explicitly clears one session.
 
-If ONA were installed, the following shapes would route to it:
+## Agent skills
 
-| Situation | Engine (if installed) |
-|---|---|
-| Known chain `A → B → C`, static facts | NAL `\|-` |
-| Property-based categorical inference | PLN `\|~` |
-| **Event sequences, cause/effect from experience** | **ONA** |
-| Real-time sensorimotor loops | **ONA** |
+- `ona-input(narsese)` submits beliefs, events, questions, or goals to the default session.
+- `ona-cycle(cycles)` advances that session.
+- `ona-reset(session)` clears a named session.
 
-Today, with ONA absent, the current practical fallback for temporal questions is NAL plus external temporal grounding — have the agent fetch timestamps or event ordering through `(shell ...)` or `(websearch ...)` and atomize them into NAL premises. This is not equivalent to what ONA would provide, and the docs do not pretend otherwise.
+ONA operation proposals are returned as structured data. They do not automatically execute shell commands or other Omega skills. An operator or agent must inspect a proposal and explicitly choose an action and feed its observed outcome back as Narsese.
 
-## Invocation surface
+## Persistence and limits
 
-**There is no stock invocation surface for ONA in Omega.** `lib_omega.metta` does not load ONA bindings. The `(metta ...)` skill has no ONA operator.
+The bridge journals committed input and cycle budgets in `memory/ona.sqlite3`. It replays the journal after process restart or session eviction. Up to four sessions stay resident; inactive sessions retain their journals. Replay reconstructs engine experience, while scheduling and wall-clock timing can produce different inference ordering.
 
-Any integration has to be built — either by calling an external ONA binary through `(shell ...)` and parsing its output, or by constructing MeTTa-side wrappers that emulate ONA's temporal operators. This is a non-trivial tools-authoring task and is the subject of the experiment described below.
+Each request permits 12,000 input characters, 500 bytes per line, at most 1,000 cycles, a 20-second response deadline, and 1 MiB of output. Inline numeric cycle commands, native reset, and blocking `*setopstdin` callbacks are rejected; use the dedicated controls. A failed or timed-out native process is discarded and the last committed journal is restored on the next request.
 
-## Status: partly-successful self-building experiment
-
-Omega's architectural vision lists ONA as a third engine, but in practice ONA support has been pursued as an experiment in whether the agent can **itself build the tools** to interface with that reasoning system. Results so far: partly successful.
-
-What this means concretely:
-
-- The agent has been used to draft shell-callable wrappers and MeTTa-side glue code for ONA-style inference. Some components work in isolation; none are integrated into the default agent loop.
-- Temporal inference is not meaningfully exposed in the current codebase.
-- There is no native mechanism for belief revision triggered by time — confidence does not automatically decay for stale claims.
-- Real-time feedback loops require careful phase tracking and frequently break due to state-management failures when the agent attempts to orchestrate them end-to-end.
-
-Treat ONA in Omega as a research direction, not a feature. The limits of agent-authored self-improvement (which is effectively what this experiment is) are documented in [reference-failure-modes.md §6](./reference-failure-modes.md) — self-authored improvements should be taken as signals but validated externally before being relied upon.
+For a source installation, build the pinned ONA revision listed in `plugins/UPSTREAM.json` and set `onaBinary` to its `NAR` executable. Docker already supplies it at `/usr/local/bin/omega-nar`.
 
 ## See also
 
-- [reference-lib-nal.md](./reference-lib-nal.md) — the symbolic engine (installed).
-- [reference-lib-pln.md](./reference-lib-pln.md) — the probabilistic engine (installed).
-- [reference-orchestration.md](./reference-orchestration.md) — how the LLM picks between the installed engines.
-- [reference-failure-modes.md](./reference-failure-modes.md) — §6 covers the self-improvement pattern this experiment fits into.
+- [NAL](./reference-lib-nal.md)
+- [PLN](./reference-lib-pln.md)
+- [Orchestration](./reference-orchestration.md)
+- [Dashboard](./reference-dashboard.md)

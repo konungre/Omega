@@ -86,10 +86,10 @@ fi
 unset MEMORY_PORTABILITY_OPERATION MEMORY_PORTABILITY_PYTHON PYTHONPATH
 
 # Scrub environment: only allowlisted vars survive.
-SAFE_VARS="HOME USER PATH HOSTNAME TERM LANG LC_ALL \
+SAFE_VARS="PATH HOSTNAME TERM LANG LC_ALL \
   PYTHONDONTWRITEBYTECODE PYTHONUNBUFFERED \
   HF_HOME SENTENCE_TRANSFORMERS_HOME HF_HUB_OFFLINE TRANSFORMERS_OFFLINE \
-  CHROMA_DB_PATH EMBEDDING_PROVIDER OMEGA_DIR MEMORY_DIR TEST_SERVER_IP"
+  CHROMA_DB_PATH EMBEDDING_PROVIDER OMEGA_DIR MEMORY_DIR TEST_SERVER_IP OMEGA_MANAGED_CONTAINER"
 
 env_args=""
 for var in $SAFE_VARS; do
@@ -101,4 +101,4 @@ done
 
 # The dashboard's bearer token is used only by its operator HTTP server.
 # Pass it explicitly, quoted, rather than through the word-split safe-var list.
-exec env -i $env_args OMEGA_DASHBOARD_TOKEN="${OMEGA_DASHBOARD_TOKEN:-}" "${agent_su[@]}" -s /bin/sh -c "sh run.sh run.metta GATEWAY_URL=\"http://localhost:8080\" $*"
+exec env -i $env_args HOME=/nonexistent USER=nobody LOGNAME=nobody OMEGA_DASHBOARD_TOKEN="${OMEGA_DASHBOARD_TOKEN:-}" setpriv --reuid=nobody --regid=nogroup --clear-groups /bin/sh -c 'exec sh run.sh run.metta GATEWAY_URL="http://localhost:8080" "$@"' sh "$@"

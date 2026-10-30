@@ -108,6 +108,7 @@ test("connect snapshots before subscribing, replay ignores duplicate sequences, 
       urls.push(url);
       assert.equal(init.headers.Authorization, "Bearer test-token");
       if (url === "/api/v1/snapshot") return response(snapshot);
+      if (url === "/api/v1/session") return response({ authenticated: true });
       return new Response(
         new ReadableStream({
           start(controller) {
@@ -130,7 +131,8 @@ test("connect snapshots before subscribing, replay ignores duplicate sequences, 
   await client.connect("test-token");
   await received;
   assert.equal(urls[0], "/api/v1/snapshot");
-  assert.ok(urls[1].includes("after=3&instance_id=stable-instance"));
+  assert.equal(urls[1], "/api/v1/session");
+  assert.ok(urls[2].includes("after=3&instance_id=stable-instance"));
   assert.deepEqual(events, [{ seq: 4 }]);
   assert.ok(statuses.includes("connected"));
   client.disconnect();
@@ -155,7 +157,7 @@ test("authentication rejection stops activity retries and requests reconnection"
             401,
           ),
   });
-  await client.connect("old-token");
+  await client.connect("");
   await stopped;
   client.disconnect();
 });

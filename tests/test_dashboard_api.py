@@ -68,6 +68,76 @@ class DashboardAPI(unittest.TestCase):
         self.assertEqual(status, 200)
         return snapshot
 
+    def test_openapi_covers_registered_commands_and_snapshot(self):
+        spec = json.loads((Path(__file__).resolve().parents[1] / 'docs/omega-api-v1.openapi.json').read_text())
+        documented = {shape['properties']['command']['const']
+                      for shape in spec['components']['schemas']['Command']['oneOf']}
+        self.assertTrue(set(self.runtime.store.command_handlers) <= documented)
+        snapshot = self.snapshot()
+        self.assertTrue(set(spec['components']['schemas']['Snapshot']['required']) <= set(snapshot))
+        self.assertIn('/api/v1/session', spec['paths'])
+        self.assertIn('/api/v1/workbench', spec['paths'])
+
+    def test_workflow_revalidates_skill_after_it_was_disabled(self):
+        wb = self.runtime.workbench
+        wb.sync([['custom-task', 'Test skill', []]], [], [], [])
+        node = {'id': 'first', 'kind': 'skill', 'depends_on': [],
+                'payload': {'name': 'custom-task', 'arguments': []}}
+        self.assertEqual(self.command('save-flow', 'orchestration.save',
+                         {'id': 'flow', 'name': 'Run skill', 'nodes': [node]})[0], 200)
+        self.command('start-flow', 'orchestration.start', {'workflow_id': 'flow'})
+        wb.sync([], [], [], [])
+        job = wb.next()
+        self.assertIn('(Error ', job[1])
+        self.assertNotIn('(custom-task)', job[1])
+        wb.finish(job[0], ['Error', 'Skill no longer registered'])
+        run = self.runtime.store.get('orchestration_runs', 'start-flow')
+        self.assertEqual(run['status'], 'failed')
+        self.assertEqual(run['nodes'][0]['status'], 'failed')
+        self.assertIsNotNone(run['nodes'][0]['evidence_id'])
+
+    def test_workflow_cycles_pause_cancel_and_interruption(self):
+        node = {'id': 'first', 'kind': 'message', 'depends_on': [], 'payload': {'text': 'hello'}}
+        cyclic = dict(node, depends_on=['first'])
+        self.assertEqual(self.command('bad-flow', 'orchestration.save',
+                         {'id': 'bad', 'name': 'Invalid', 'nodes': [cyclic]})[0], 400)
+        self.command('save-flow', 'orchestration.save', {'id': 'flow', 'name': 'Message', 'nodes': [node]})
+        self.command('start-flow', 'orchestration.start', {'workflow_id': 'flow'})
+        self.command('pause-flow', 'orchestration.set_status', {'run_id': 'start-flow', 'status': 'paused'})
+        self.assertEqual(self.runtime.workbench.next(), [])
+        self.command('cancel-flow', 'orchestration.set_status', {'run_id': 'start-flow', 'status': 'cancelled'})
+        run = self.runtime.store.get('orchestration_runs', 'start-flow')
+        self.assertEqual(run['nodes'][0]['status'], 'skipped')
+        self.assertEqual(self.command('resume-terminal', 'orchestration.set_status',
+                         {'run_id': 'start-flow', 'status': 'running'})[0], 409)
+
+    def test_expiring_cookie_session_and_logout(self):
+        client = http.client.HTTPConnection('127.0.0.1', self.port, timeout=3)
+        client.request('POST', '/api/v1/session', headers={'Authorization': 'Bearer ' + TOKEN})
+        response = client.getresponse()
+        self.assertEqual(response.status, 200)
+        cookie = response.getheader('Set-Cookie')
+        response.read()
+        client.close()
+        for attribute in ('HttpOnly', 'SameSite=Strict', 'Max-Age=28800', 'Path=/api/v1'):
+            self.assertIn(attribute, cookie)
+        headers = {'Cookie': cookie.split(';')[0]}
+        self.assertEqual(self.http('GET', '/api/v1/snapshot', token=None, headers=headers)[0], 200)
+        self.assertEqual(self.http('GET', '/api/v1/snapshot', token='wrong', headers=headers)[0], 401)
+        self.assertEqual(self.http('GET', '/api/v1/snapshot', token=None, headers=headers | {'Origin': 'https://evil.example'})[0], 403)
+        self.assertEqual(self.http('GET', '/api/v1/snapshot', token=None, headers={'Cookie': headers['Cookie'] + 'x'})[0], 401)
+        import hmac, hashlib
+        message = '1.expired'
+        signature = hmac.new(TOKEN.encode(), message.encode(), hashlib.sha256).hexdigest()
+        self.assertEqual(self.http('GET', '/api/v1/snapshot', token=None, headers={'Cookie': 'omega_session=' + message + '.' + signature})[0], 401)
+        client = http.client.HTTPConnection('127.0.0.1', self.port, timeout=3)
+        client.request('DELETE', '/api/v1/session', headers=headers)
+        response = client.getresponse()
+        self.assertEqual(response.status, 200)
+        self.assertIn('Max-Age=0', response.getheader('Set-Cookie'))
+        response.read()
+        client.close()
+
     def test_auth_origin_and_static_boundary(self):
         for method, path in [('GET', '/api/v1/snapshot'), ('GET', '/api/v1/events'), ('POST', '/api/v1/commands')]:
             self.assertEqual(self.http(method, path, token=None)[0], 401)

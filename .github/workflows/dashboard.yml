@@ -1,4 +1,4 @@
-name: Dashboard API and transport
+name: Omega workbench
 
 on:
   pull_request:
@@ -11,6 +11,15 @@ on:
       - 'src/channels*'
       - 'src/providers.py'
       - 'src/loop.metta'
+      - 'src/ona.py'
+      - 'providers/smollm3.py'
+      - 'plugins/**'
+      - 'Dockerfile'
+      - 'scripts/docker-entrypoint.py'
+      - 'tests/test_ona_native.py'
+      - 'tests/test_smollm3_provider.py'
+      - 'tests/docker_workbench_smoke.py'
+      - 'tests/workbench*'
       - 'tests/test_dashboard_api.py'
       - 'tests/dashboard_loop*'
       - 'docs/omega-api-v1.openapi.json'
@@ -25,6 +34,15 @@ on:
       - 'src/channels*'
       - 'src/providers.py'
       - 'src/loop.metta'
+      - 'src/ona.py'
+      - 'providers/smollm3.py'
+      - 'plugins/**'
+      - 'Dockerfile'
+      - 'scripts/docker-entrypoint.py'
+      - 'tests/test_ona_native.py'
+      - 'tests/test_smollm3_provider.py'
+      - 'tests/docker_workbench_smoke.py'
+      - 'tests/workbench*'
       - 'tests/test_dashboard_api.py'
       - 'tests/dashboard_loop*'
       - 'docs/omega-api-v1.openapi.json'
@@ -43,7 +61,32 @@ jobs:
           node-version: '22'
       - name: API integration tests
         run: python3 -m unittest discover -s tests -p test_dashboard_api.py -v
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Local provider boundary dependencies
+        run: python3 -m pip install pytest PyYAML
+      - name: Local model response and failure handling
+        run: python3 -m pytest -q tests/test_smollm3_provider.py
       - name: Browser transport recovery tests
         run: node --test dashboard/tests/*.test.mjs
       - name: Validate OpenAPI JSON
         run: python3 -m json.tool docs/omega-api-v1.openapi.json > /dev/null
+
+  native-ona:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build pinned native reasoner
+        run: |
+          git init /tmp/omega-ona
+          git -C /tmp/omega-ona remote add origin https://github.com/opennars/OpenNARS-for-Applications.git
+          git -C /tmp/omega-ona fetch --depth=1 origin dc4efd0abd520cdb79bf53bfa3c285ebb24f2e8a
+          git -C /tmp/omega-ona checkout FETCH_HEAD
+          cd /tmp/omega-ona && sh build.sh
+      - name: Native deduction, temporal input, reset and journal recovery
+        env:
+          OMEGA_onaBinary: /tmp/omega-ona/NAR
+        run: python3 -m unittest discover -s tests -p test_ona_native.py -v
+      - name: Health plugin HTTP self-test
+        run: python3 plugins/health/health.py

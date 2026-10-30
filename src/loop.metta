@@ -11,12 +11,13 @@
    (progn (configure maxNewInputLoops 50) ;20
           (configure maxWakeLoops 1)
           (configure sleepInterval 1) ;10
-          (configure provider Anthropic)
-          (configure maxOutputToken 6000)
+          (configure provider SmolLM3)
+          (configure maxOutputToken 1024)
           (configure reasoningMode medium)
           (configure wakeupInterval 600) ;600=10 minutes
           (configure memoryDirectory
                (joinPath ((py-call (helper.projectRootDirectory)) memory)))
+          (change-state! &nextWakeAt (+ (get_time) (wakeupInterval)))
           (change-state! &prevmsg "")
           (change-state! &loops (maxNewInputLoops))
           (messagesClear)
@@ -87,6 +88,7 @@
                                (commChannelSend (version))
                                (llmProviderStart (provider)))
                         (change-state! &loops (- (get-state &loops) 1)))
+          (dashboard-process-control)
           (let $prompt (getContext)
                (progn (log INFO "loop" (---------iteration $k))
                       (heartbeat $k)
@@ -130,6 +132,7 @@
                                            (if (or $msgnew  (not (== $sexpr ()))) (addToHistory $msg $sexpr $msgnew) _))
                                 (if (> (get_time) (get-state &nextWakeAt))
                                     (change-state! &loops (+ 1 (maxWakeLoops))) _)))
+                      (dashboard-sync-views)
                       (py-call (channels.dashboard_end_turn))
                       (sleep (sleepInterval))
                       (cut)

@@ -15,10 +15,12 @@ class Runtime:
         self.request_id = None
         self.failed = False
         self.server = None
+        from .workbench import Workbench
+        self.workbench = Workbench(self)
 
     def agent(self):
         with self.lock:
-            return {"connected": self.connected, "status": "working" if self.run_id else "idle" if self.connected else "offline",
+            return {"connected": self.connected, "status": "working" if self.run_id or self.workbench.current else "idle" if self.connected else "offline",
                     "run_id": self.run_id, "request_id": self.request_id}
 
     def receive(self):
@@ -39,8 +41,10 @@ class Runtime:
             return ""
         goals = [g for g in self.store.all("goals") if g["status"] == "active"]
         # Plain data, never executable MeTTa; bounded to avoid unbounded prompt growth.
-        return "\nOPERATOR GOALS (active only; report evidence and improvement outcomes using dashboard skills):\n" + json.dumps(
+        operator_context = "\nOPERATOR GOALS (active only; report evidence and improvement outcomes using dashboard skills):\n" + json.dumps(
             [{"id": g["id"], "title": g["title"], "description": g["description"]} for g in goals[:20]], ensure_ascii=False)[:30000]
+        graph = self.store.get("meta", "telos")
+        return operator_context + ("\nTELOS GOAL GRAPH AND DERIVED CONFLICTS/BLOCKERS:\n" + json.dumps(graph, ensure_ascii=False)[:10000] if graph else "")
 
     def begin_turn(self):
         with self.lock, self.store.transaction():

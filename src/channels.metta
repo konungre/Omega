@@ -4,7 +4,7 @@
 ;Connect all the channels:
 (= (initChannels)
    (progn (log INFO "channels" "Initializing channels")
-          (configure commchannel irc)
+          (configure commchannel dashboard)
           (commChannelStart (commchannel))
           (if (== (commchannel) dashboard)
               (progn
@@ -38,3 +38,40 @@
 
 (= (dashboard-report-improvement $report)
    (py-call (channels.dashboard_report "improvement" $report)))
+
+
+; Operator jobs are consumed on this thread, never on HTTP worker threads.
+(= (dashboard-sync-views)
+   (if (== (commchannel) dashboard)
+       (let* (($catalog-query (quote (getSkills)))
+              ($catalog (eval $catalog-query))
+              ($goal-query (quote (telos-list-goals)))
+              ($relation-query (quote (telos-list-relations)))
+              ($report-query (quote (telos-report)))
+              ($goals (collapse (eval $goal-query)))
+              ($relations (collapse (eval $relation-query)))
+              ($report (collapse (eval $report-query))))
+         (py-call (channels.dashboard_sync_views $catalog $goals $relations $report)))
+       ()))
+
+(= (dashboard-process-control)
+   (if (== (commchannel) dashboard)
+       (progn
+         (dashboard-sync-views)
+         (let $job (py-call (channels.dashboard_next_control))
+           (if (== $job ())
+               ()
+               (let ($id $source) $job
+                 (let $expression (sread $source)
+                   (let $result (catch (collapse (eval $expression)))
+                     (progn (dashboard-sync-views)
+                       (py-call (channels.dashboard_finish_control $id $result))))))))
+         (dashboard-sync-views))
+       ()))
+
+(= (dashboard-apply-settings $json)
+   (map-atom (py-call (config.apply_operator_json $json)) $entry
+      (let ($key $value) $entry
+        (progn
+          (collapse (match &self (= ($key) $old) (remove-atom &self (= ($key) $old))))
+          (add-atom &self (= ($key) $value))))))

@@ -1,0 +1,362 @@
+{
+  "maxNewInputLoops": {
+    "type": "integer",
+    "default": 50,
+    "live": true,
+    "group": "Agent",
+    "minimum": 1,
+    "maximum": 1000
+  },
+  "maxWakeLoops": {
+    "type": "integer",
+    "default": 1,
+    "live": true,
+    "group": "Agent",
+    "minimum": 0,
+    "maximum": 100
+  },
+  "sleepInterval": {
+    "type": "number",
+    "default": 1,
+    "live": true,
+    "group": "Agent",
+    "minimum": 0.05,
+    "maximum": 60
+  },
+  "provider": {
+    "type": "string",
+    "default": "SmolLM3",
+    "live": false,
+    "group": "Agent",
+    "enum": [
+      "SmolLM3",
+      "OpenAI",
+      "Anthropic",
+      "ASICloud",
+      "ASIOne",
+      "OpenAIAPI",
+      "OpenRouter",
+      "Test"
+    ]
+  },
+  "maxOutputToken": {
+    "type": "integer",
+    "default": 1024,
+    "live": true,
+    "group": "Agent",
+    "minimum": 64,
+    "maximum": 32768
+  },
+  "reasoningMode": {
+    "type": "string",
+    "default": "medium",
+    "live": true,
+    "group": "Agent",
+    "enum": [
+      "none",
+      "low",
+      "medium",
+      "high"
+    ]
+  },
+  "wakeupInterval": {
+    "type": "integer",
+    "default": 600,
+    "live": true,
+    "group": "Agent",
+    "minimum": 1,
+    "maximum": 86400
+  },
+  "logConfigPath": {
+    "type": "string",
+    "default": "",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "memoryDirectory": {
+    "type": "string",
+    "default": "./repos/Omega/memory",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "maxFeedback": {
+    "type": "integer",
+    "default": 50000,
+    "live": true,
+    "group": "Agent",
+    "minimum": 100,
+    "maximum": 100000
+  },
+  "maxRecallItems": {
+    "type": "integer",
+    "default": 20,
+    "live": true,
+    "group": "Agent",
+    "minimum": 1,
+    "maximum": 100
+  },
+  "maxEpisodeRecallLines": {
+    "type": "integer",
+    "default": 20,
+    "live": true,
+    "group": "Agent",
+    "minimum": 1,
+    "maximum": 100
+  },
+  "maxHistory": {
+    "type": "integer",
+    "default": 12000,
+    "live": true,
+    "group": "Agent",
+    "minimum": 0,
+    "maximum": 200000
+  },
+  "chromaDbPath": {
+    "type": "string",
+    "default": "./chroma_db",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "embeddingprovider": {
+    "type": "string",
+    "default": "Local",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "embeddingModel": {
+    "type": "string",
+    "default": "",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "knowledgeIndexingBackground": {
+    "type": "boolean",
+    "default": false,
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "embeddingBatchSize": {
+    "type": "integer",
+    "default": 32,
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "memoryExportEnabled": {
+    "type": "boolean",
+    "default": false,
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "securityPolicyPath": {
+    "type": "string",
+    "default": "./repos/Omega/profile/policy.yaml",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "commchannel": {
+    "type": "string",
+    "default": "dashboard",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "IRC_channel": {
+    "type": "string",
+    "default": "##omega",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "IRC_server": {
+    "type": "string",
+    "default": "irc.quakenet.org",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "IRC_port": {
+    "type": "integer",
+    "default": 6667,
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "IRC_user": {
+    "type": "string",
+    "default": "omega",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "MM_URL": {
+    "type": "string",
+    "default": "https://chat.singularitynet.io",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "MM_CHANNEL_ID": {
+    "type": "string",
+    "default": "8fjrmabjx7gupy7e5kjznpt5qh",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "SL_CHANNEL_ID": {
+    "type": "string",
+    "default": "",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "SL_POLL_INTERVAL": {
+    "type": "integer",
+    "default": 60,
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "SL_MAX_FILE_SIZE_MB": {
+    "type": "integer",
+    "default": 5,
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "TG_CHAT_ID": {
+    "type": "string",
+    "default": "",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "TG_ALLOWED_CHAT_IDS": {
+    "type": "string",
+    "default": "",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "TG_POLL_TIMEOUT": {
+    "type": "integer",
+    "default": 20,
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "WS_URL": {
+    "type": "string",
+    "default": "",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "dashboardHost": {
+    "type": "string",
+    "default": "127.0.0.1",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "dashboardPort": {
+    "type": "integer",
+    "default": 8088,
+    "live": false,
+    "group": "Deployment and integrations",
+    "minimum": 1024,
+    "maximum": 65535
+  },
+  "openaiapi_url": {
+    "type": "string",
+    "default": "http://localhost:11434/v1/",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "openaiapi_model": {
+    "type": "string",
+    "default": "qwen3.5:9b",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "asicloud_model": {
+    "type": "string",
+    "default": "minimax/minimax-m3",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "anthropic_model": {
+    "type": "string",
+    "default": "claude-opus-4-8",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "openrouter_model": {
+    "type": "string",
+    "default": "z-ai/glm-5.2",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "OPENROUTER_CACHE_TTL": {
+    "type": "string",
+    "default": "5m",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "openai_model": {
+    "type": "string",
+    "default": "gpt-5.5",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "asione_model": {
+    "type": "string",
+    "default": "asi1-ultra",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "openClawEnabled": {
+    "type": "string",
+    "default": "disabled",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "openClawURL": {
+    "type": "string",
+    "default": "http://172.17.0.1:18789",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "openClawAgent": {
+    "type": "string",
+    "default": "main",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "model": {
+    "type": "string",
+    "default": "SmolLM3-3B",
+    "live": true,
+    "group": "Local model"
+  },
+  "localModelURL": {
+    "type": "string",
+    "default": "http://127.0.0.1:8089/v1",
+    "live": true,
+    "group": "Local model"
+  },
+  "localModelTimeout": {
+    "type": "integer",
+    "default": 180,
+    "live": true,
+    "group": "Local model",
+    "minimum": 5,
+    "maximum": 600
+  },
+  "localTemperature": {
+    "type": "number",
+    "default": 0.2,
+    "live": true,
+    "group": "Local model",
+    "minimum": 0,
+    "maximum": 2
+  },
+  "onaBinary": {
+    "type": "string",
+    "default": "/usr/local/bin/omega-nar",
+    "live": false,
+    "group": "Deployment and integrations"
+  },
+  "HEALTH_PORT": {
+    "type": "integer",
+    "default": 8081,
+    "live": false,
+    "group": "Deployment and integrations",
+    "minimum": 1024,
+    "maximum": 65535
+  }
+}

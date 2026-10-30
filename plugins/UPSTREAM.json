@@ -1,0 +1,5 @@
+{
+  "telos-goals": {"repository": "https://github.com/arielagor/omega-telos-goals", "commit": "9c23500360957e3f10634cba86cdf9382bdece54", "license": "Apache-2.0"},
+  "health": {"repository": "https://github.com/Leul-Negash/omegaclaw-health-plugin", "commit": "d1689278b16d5bf003b624e9f9992ed51abdffd7", "license": "Apache-2.0"},
+  "ona": {"repository": "https://github.com/opennars/OpenNARS-for-Applications", "commit": "dc4efd0abd520cdb79bf53bfa3c285ebb24f2e8a", "license": "MIT"}
+}

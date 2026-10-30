@@ -1,5 +1,9 @@
 """Same-origin HTTP command API and authenticated SSE activity subscriptions."""
 import hmac
+import hashlib
+import secrets
+import time
+from http.cookies import SimpleCookie, CookieError
 import json
 import logging
 import re
@@ -12,7 +16,7 @@ from urllib.parse import parse_qs, urlsplit
 from .store import APIError, encode, require
 
 LOG = logging.getLogger(__name__)
-ASSETS = {"/favicon.svg": ("favicon.svg", "image/svg+xml"), "/": ("index.html", "text/html; charset=utf-8"),
+ASSETS = {"/workbench-ui.js": ("workbench-ui.js", "text/javascript; charset=utf-8"), "/favicon.svg": ("favicon.svg", "image/svg+xml"), "/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/api-client.js": ("api-client.js", "text/javascript; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
@@ -55,26 +59,58 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 
-    def reply(self, status, body, content_type="application/json; charset=utf-8"):
+    def reply(self, status, body, content_type="application/json; charset=utf-8", headers=None):
         data = body if isinstance(body, bytes) else encode(body).encode()
         self.send_response(status)
         self.headers_common()
         self.send_header("Content-Type", content_type)
         if status == 401:
             self.send_header("WWW-Authenticate", 'Bearer realm="omega"')
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
 
     def authorized(self):
         auth = self.headers.get("Authorization", "")
-        if not hmac.compare_digest(auth.encode(), f"Bearer {self.server.token}".encode()):
+        valid = hmac.compare_digest(auth.encode(), f"Bearer {self.server.token}".encode()) if auth else self.valid_session()
+        if not valid:
             raise APIError(401, "unauthorized", "Enter the Omega dashboard token to connect")
         origin = self.headers.get("Origin")
         if origin:
             parsed = urlsplit(origin)
             require(parsed.scheme in ("http", "https") and parsed.netloc == self.headers.get("Host"),
                     "Cross-origin API requests are not allowed", 403, "origin_denied")
+
+    def valid_session(self):
+        try:
+            cookies = SimpleCookie()
+            cookies.load(self.headers.get("Cookie", ""))
+            value = cookies.get("omega_session")
+            if not value:
+                return False
+            expires, nonce, signature = value.value.split(".")
+            message = expires + "." + nonce
+            expected = hmac.new(self.server.token.encode(), message.encode(), hashlib.sha256).hexdigest()
+            return int(expires) > time.time() and hmac.compare_digest(signature, expected)
+        except (CookieError, ValueError):
+            return False
+
+    def session_cookie(self):
+        message = str(int(time.time()) + 28800) + "." + secrets.token_hex(16)
+        signature = hmac.new(self.server.token.encode(), message.encode(), hashlib.sha256).hexdigest()
+        secure = "; Secure" if self.headers.get("Origin", "").startswith("https://") or self.headers.get("X-Forwarded-Proto") == "https" else ""
+        return f"omega_session={message}.{signature}; Path=/api/v1; HttpOnly; SameSite=Strict; Max-Age=28800{secure}"
+
+    def do_DELETE(self):
+        self.close_connection = True
+        try:
+            self.authorized()
+            require(self.path == "/api/v1/session", "API endpoint not found", 404, "not_found")
+            self.reply(200, {"authenticated": False}, headers={"Set-Cookie": "omega_session=; Path=/api/v1; HttpOnly; SameSite=Strict; Max-Age=0"})
+        except APIError as exc:
+            self.reply(exc.status, {"error": {"code": exc.code, "message": exc.message}})
 
     def do_GET(self):
         try:
@@ -89,7 +125,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/v1/openapi.json":
                 self.reply(200, (Path(__file__).resolve().parents[1] / "docs" / "omega-api-v1.openapi.json").read_bytes())
             elif path == "/api/v1/snapshot":
-                self.reply(200, runtime.store.snapshot(runtime.agent()))
+                self.reply(200, runtime.workbench.snapshot(include_agent=True))
+            elif path == "/api/v1/workbench":
+                self.reply(200, runtime.workbench.snapshot())
             elif path.startswith("/api/v1/requests/"):
                 self.reply(200, runtime.store.request(path.removeprefix("/api/v1/requests/")))
             elif path.startswith("/api/v1/evidence/"):
@@ -151,6 +189,9 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
         try:
             self.authorized()
+            if self.path == "/api/v1/session":
+                self.reply(200, {"authenticated": True}, headers={"Set-Cookie": self.session_cookie()})
+                return
             require(self.path == "/api/v1/commands", "API endpoint not found", 404, "not_found")
             require(self.headers.get("Content-Type", "").split(";")[0].strip() == "application/json",
                     "Use Content-Type: application/json", 415, "unsupported_media_type")
